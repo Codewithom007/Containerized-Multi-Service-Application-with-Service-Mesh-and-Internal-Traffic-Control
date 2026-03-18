@@ -1,0 +1,53 @@
+ 
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: user-service-dr
+  namespace: microservices
+spec:
+  host: user-service
+  trafficPolicy:
+    # ─── Circuit Breaker Configuration ─────────────────
+    # If a pod keeps failing, stop sending it traffic temporarily
+    outlierDetection:
+      consecutive5xxErrors: 5    # After 5 errors in a row...
+      interval: 30s             # ...checked over 30 seconds...
+      baseEjectionTime: 30s     # ...remove the pod for 30 seconds
+      maxEjectionPercent: 50    # Never remove more than 50% of pods
+  subsets:
+  - name: v1                    # Define 'v1' subset
+    labels:
+      version: v1              # Pods that have label version=v1
+  - name: v2                    # Define 'v2' subset
+    labels:
+      version: v2
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: order-service-dr
+  namespace: microservices
+spec:
+  host: order-service
+  trafficPolicy:
+    outlierDetection:
+      consecutive5xxErrors: 3
+      interval: 10s
+      baseEjectionTime: 20s
+      maxEjectionPercent: 100
+  subsets:
+  - name: v1
+    labels:
+      version: v1
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: payment-service-dr
+  namespace: microservices
+spec:
+  host: payment-service
+  subsets:
+  - name: v1
+    labels:
+      version: v1

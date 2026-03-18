@@ -1,0 +1,68 @@
+# ─── User Service: 80% to v1, 20% to v2 ─────────────────
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: user-service-vs
+  namespace: microservices
+spec:
+  hosts:
+  - user-service                # This rule applies to traffic going to user-service
+  http:
+  - name: canary-route
+    # ─── Retry Policy ─────────────────────────────────
+    retries:
+      attempts: 3               # Try the request up to 3 times
+      perTryTimeout: 2s         # Each attempt must respond within 2 seconds
+      retryOn: "5xx,reset,connect-failure"  # Retry on these error types
+    timeout: 10s                # Total maximum time for the whole request
+    # ─── Traffic Split ────────────────────────────────
+    route:
+    - destination:
+        host: user-service
+        subset: v1              # The v1 subset we defined in DestinationRule
+      weight: 80               # 80% of requests go here
+    - destination:
+        host: user-service
+        subset: v2
+      weight: 20               # 20% of requests go here (canary)
+---
+# ─── Order Service: All traffic to v1, with retries ──────
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: order-service-vs
+  namespace: microservices
+spec:
+  hosts:
+  - order-service
+  http:
+  - retries:
+      attempts: 3
+      perTryTimeout: 3s
+      retryOn: "5xx,gateway-error"
+    timeout: 15s
+    route:
+    - destination:
+        host: order-service
+        subset: v1
+      weight: 100
+---
+# ─── Payment Service: All to v1, conservative timeout ────
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: payment-service-vs
+  namespace: microservices
+spec:
+  hosts:
+  - payment-service
+  http:
+  - retries:
+      attempts: 2
+      perTryTimeout: 5s
+    timeout: 20s               # Payments get more time
+    route:
+    - destination:
+        host: payment-service
+        subset: v1
+      weight: 100
